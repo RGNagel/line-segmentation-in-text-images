@@ -64,17 +64,24 @@ class TextImage:
     
     def calcBackgroundColor(self):
         
-        r, c = rectangle_perimeter((1,1), end=(self.rows, self.cols), shape=self.image_gray.shape)
+        # if some coordinates are out of image boundaries,
+        # the function does not take into account their 
+        # closest coordinates, instead, it just ignores 
+        # the out-of-bound coordinates.
+        r, c = rectangle_perimeter((1,1), end=(self.rows - 2, self.cols - 2), shape=self.image_gray.shape)
 
         black_ctr = 0
         white_ctr = 0
 
-        for point in self.image_gray[r, c]:
+        # set_color(self.image_rgb, (r, c), (0,255,0))
+
+        for point in self.image_bin[r, c]:
             
             if point == self.BLACK:
                 black_ctr = black_ctr + 1
             else:
                 white_ctr = white_ctr + 1
+
 
         assert white_ctr != black_ctr, "Image perimeter has equal black and white pixels..."
 
