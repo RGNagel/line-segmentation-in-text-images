@@ -120,6 +120,8 @@ class TextImage:
                 # save line coordinates for future operations
                 self.lines.append(TextLineImage(start=(row - row_ctr, 0), end=(row - 1, self.cols - 1)))
                 row_ctr = 0
+            else:
+                row_ctr = 0
 
 
             # next pixel row or finished
