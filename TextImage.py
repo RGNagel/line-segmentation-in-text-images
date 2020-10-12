@@ -6,6 +6,7 @@ from skimage import io
 
 import numpy as np
 
+import math
 
 class TextImage:
 
@@ -28,7 +29,6 @@ class TextImage:
         self.filepath = filepath
         image = io.imread(filepath)
 
-        print(image[0][0])
         # image = io.imread('images/teste.jpg', np.float64)
 
         if image[0][0].size == 1:
@@ -76,7 +76,7 @@ class TextImage:
         # set_color(self.image_rgb, (r, c), (0,255,0))
 
         for point in self.image_bin[r, c]:
-            
+
             if point == self.BLACK:
                 black_ctr = black_ctr + 1
             else:
@@ -105,12 +105,11 @@ class TextImage:
             # for every pixel column
             for col in range(0, self.cols):
                 if self.image_bin[row][col] == self.text_color:
-                    # black
                     text_pxs = text_pxs + 1
                 else:
-                    # white
                     background_pxs = background_pxs + 1
 
+            # print(text_pxs / self.cols)
             if text_pxs / self.cols >= self.threshold_percent_px_cols:
                 row_ctr = row_ctr + 1
 
@@ -127,6 +126,50 @@ class TextImage:
             # next pixel row or finished
 
         return text_lines
+
+
+    def getTextLinesAlternative(self):
+
+        text_lines = 0
+        row_ctr = 0
+
+        # for every pixel row
+        for row in range(0, self.rows):
+
+            text_pxs = 0
+            background_pxs = 0
+
+            col_block_size = int(self.cols / 20)
+            col = 0
+            lineFoundInBlocks = False
+            while (col + col_block_size - 1) < self.cols:
+                
+                # for each col block
+                for c in range(col, col + col_block_size):
+                    if self.image_bin[row][c] == self.text_color:
+                        text_pxs = text_pxs + 1
+                    else:
+                        background_pxs = background_pxs + 1
+
+                if text_pxs / col_block_size >= self.threshold_percent_px_cols:
+                    row_ctr = row_ctr + 1
+                    lineFoundInBlocks = True
+                    break
+            
+                col = col + col_block_size
+
+            if lineFoundInBlocks is False:
+                if row_ctr >= self.threshold_qty_px_rows_is_text:
+                    text_lines = text_lines + 1
+                    self.lines.append(TextLineImage(start=(row - row_ctr, 0), end=(row - 1, self.cols - 1)))
+                    row_ctr = 0
+                else:
+                    row_ctr = 0
+
+            # next pixel row or finished
+
+        return text_lines
+
 
     def getCharsPerLine(self):
         charsPerLine = []
