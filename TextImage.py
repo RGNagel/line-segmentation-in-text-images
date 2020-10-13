@@ -52,7 +52,7 @@ class TextImage:
         self.image_rgb = img_as_ubyte(self.image_rgb)
 
         self.image_bin  = self.image_gray > threshold_img_bin
-
+        
         self.image_bin_dilated = np.array([])
         self.image_bin_dilated_words = np.array([])
 
@@ -64,7 +64,7 @@ class TextImage:
         if self.background_color == self.WHITE:
             self.image_bin = np.invert(self.image_bin)
 
-            self.text_color = self.WHITE
+        self.text_color = self.WHITE
         self.background_color = self.BLACK
 
         assert self.text_color != self.background_color, "Background and text colors are the same!"
@@ -257,7 +257,14 @@ class Rectangle:
 
 class TextLineImage(Rectangle):
 
-    words = []
+    # if words arr is initialized here, it will be used by all objects instantiated from this class
+    
+    def __init__(self, start, end):
+
+        super().__init__(start, end)
+        
+        self.words = []
+
 
     def getWords(self, text_image: TextImage):
 
