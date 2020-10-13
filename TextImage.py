@@ -4,6 +4,9 @@ from skimage.util import img_as_ubyte
 from skimage.draw import rectangle_perimeter, set_color
 from skimage import io
 
+from skimage.filters import rank
+from skimage.morphology import disk, square, star, binary_dilation, binary_erosion, binary_opening
+
 import numpy as np
 
 import math
@@ -29,7 +32,7 @@ class TextImage:
         self.filepath = filepath
         image = io.imread(filepath)
 
-        # image = io.imread('images/teste.jpg', np.float64)
+        self.image_original = np.copy(image)
 
         if image[0][0].size == 1:
             self.image_rgb  = gray2rgb(image)
@@ -41,6 +44,7 @@ class TextImage:
         elif image[0][0].size == 3:
             self.image_rgb  = image
             self.image_gray = rgb2gray(self.image_rgb)
+
         else:
             raise Exception("image pixel dimension is not supported")
 
@@ -49,15 +53,19 @@ class TextImage:
 
         self.image_bin  = self.image_gray > threshold_img_bin
 
+        self.image_bin_dilated = np.array([])
+        self.image_bin_dilated_words = np.array([])
+
         self.rows = self.image_gray.shape[0]
         self.cols = self.image_gray.shape[1]
 
         self.background_color = self.calcBackgroundColor()
 
         if self.background_color == self.WHITE:
-            self.text_color = self.BLACK
-        else:
+            self.image_bin = np.invert(self.image_bin)
+
             self.text_color = self.WHITE
+        self.background_color = self.BLACK
 
         assert self.text_color != self.background_color, "Background and text colors are the same!"
 
@@ -90,8 +98,13 @@ class TextImage:
         else:
             return self.BLACK
 
-
     def getTextLines(self):
+
+
+        if len(self.image_bin_dilated):
+            image = self.image_bin_dilated
+        else:
+            image = self.image_bin
 
         text_lines = 0
         row_ctr = 0
@@ -104,7 +117,7 @@ class TextImage:
 
             # for every pixel column
             for col in range(0, self.cols):
-                if self.image_bin[row][col] == self.text_color:
+                if image[row][col] == self.text_color:
                     text_pxs = text_pxs + 1
                 else:
                     background_pxs = background_pxs + 1
@@ -126,7 +139,6 @@ class TextImage:
             # next pixel row or finished
 
         return text_lines
-
 
     def getTextLinesAlternative(self):
 
@@ -171,24 +183,36 @@ class TextImage:
         return text_lines
 
 
-    def getCharsPerLine(self):
-        charsPerLine = []
-        for line in self.lines:
-            charsPerLine.append(line.getChars(self))
+    def dilateLines(self):
 
-        return charsPerLine
+        kernel         = np.array([np.ones(100)])
+        self.image_bin_dilated = binary_dilation(self.image_bin, kernel)
+
+
+    def dilateWords(self, width=10):
+        kernel = np.array([np.ones(width)])
+        self.image_bin_dilated_words = binary_dilation(self.image_bin, kernel)
+
+
+    def getWordsPerLine(self):
+        wordsPerLine = []
+        for line in self.lines:
+            wordsPerLine.append(line.getWords(self))
+
+        return wordsPerLine
 
     def drawTextLines(self):
 
         for line in self.lines:
-            # yellow
-            line.drawPerimeter(self.image_rgb, color=(255, 255, 0))
+            # red
+            line.drawPerimeter(self.image_rgb, color=(255, 0, 0))
 
-    def drawChars(self):
+    def drawWords(self, color=(0, 255, 0)):
+
 
         for line in self.lines:
-            # red
-            line.drawChars(self.image_rgb, color=(255, 0, 0))
+            # green by default
+            line.drawWords(self.image_rgb, color=color)
 
     def saveImages(self):
 
@@ -199,6 +223,9 @@ class TextImage:
 
         filepath_bin = self.filepath.split('.')[0] + '_bin.' + self.filepath.split('.')[1]
         io.imsave(filepath_bin, img_as_ubyte(self.image_bin))
+
+        filepath_gray = self.filepath.split('.')[0] + '_gray.' + self.filepath.split('.')[1]
+        io.imsave(filepath_gray, img_as_ubyte(self.image_gray))
 
 
 class Rectangle:
@@ -224,26 +251,32 @@ class Rectangle:
 
         r, c = rectangle_perimeter(self.start, end=self.end, shape=image.shape)
         set_color(image, (r, c), color)
+
         # image[r, c] = (255, 255, 0)
 
 
 class TextLineImage(Rectangle):
 
-    chars = []
+    words = []
 
-    def getChars(self, text_image: TextImage):
+    def getWords(self, text_image: TextImage):
 
-        image            = text_image.image_bin
+        if len(text_image.image_bin_dilated_words):
+            image = text_image.image_bin_dilated_words
+        else:
+            image = text_image.image_bin
+
         text_color       = text_image.text_color
         background_color = text_image.background_color
+
 
         if image[0][0].size != 1:
             raise ValueError('image must be one-dimension')
 
-        threshold_percent_px_rows = 0.05
-        threshold_qty_px_cols_is_char = 3
+        threshold_percent_px_rows = 0.001
+        threshold_qty_px_cols_is_word = 1
 
-        chars = 0
+        words = 0
         col_ctr = 0
 
         for col in range(self.start[1], self.end[1]):
@@ -261,16 +294,16 @@ class TextLineImage(Rectangle):
             if text_pxs / self.row_len >= threshold_percent_px_rows:
                 col_ctr = col_ctr + 1
 
-            elif col_ctr >= threshold_qty_px_cols_is_char:
-                chars = chars + 1
-                self.chars.append(Rectangle(start=(self.start[0], col - col_ctr),end=(self.end[0], col - 1)))
+            elif col_ctr >= threshold_qty_px_cols_is_word:
+                words = words + 1
+                self.words.append(Rectangle(start=(self.start[0], col - col_ctr),end=(self.end[0], col - 1)))
                 col_ctr = 0
 
-        return chars
+        return words
 
-    def drawChars(self, image, color):
+    def drawWords(self, image, color):
 
-        for char in self.chars:
+        for word in self.words:
             # red
-            char.drawPerimeter(image, color)
+            word.drawPerimeter(image, color)
             
